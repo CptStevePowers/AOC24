@@ -48,6 +48,7 @@ func calculateTotalDifference(l1, l2 []int) int {
 	totalDiff := 0
 	for i := 0; i < len(l1); i++ {
 		diff := max(l1[i], l2[i]) - min(l1[i], l2[i])
+		fmt.Printf("%v %v %v\n", l1[i], l2[i], diff)
 		totalDiff += diff
 	}
 	return totalDiff
