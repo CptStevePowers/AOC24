@@ -17,16 +17,13 @@ func parseInput(p string) string {
 	return text
 }
 
-func main() {
-	fmt.Printf("Hi Day3\n")
-	input := parseInput("./input.txt")
+func findAndApplyMul(s string) int {
 	exp, err := regexp.Compile(`mul\([0-9]{1,3},[0-9]{1,3}\)`)
 	if err != nil {
 		fmt.Printf("Faulty regular expression\n")
 		panic(err)
 	}
-	matches := exp.FindAllString(input, -1)
-	fmt.Printf("Found %v matches\n", len(matches))
+	matches := exp.FindAllString(s, -1)
 	sum := 0
 	for i := 0; i < len(matches); i++ {
 		s := matches[i]
@@ -45,6 +42,19 @@ func main() {
 		}
 		sum += a * b
 	}
-	fmt.Printf("Result: %v", sum)
+	return sum
+}
 
+func main() {
+	fmt.Printf("Hi Day3\n")
+	input := parseInput("./input.txt")
+	sum := findAndApplyMul(input)
+	fmt.Printf("Part 1 result: %v\n", sum)
+	doStrings := strings.Split(input, "do()")
+	sum = 0
+	for i := 0; i < len(doStrings); i++ {
+		splits := strings.Split(doStrings[i], "don't()")
+		sum += findAndApplyMul(splits[0])
+	}
+	fmt.Printf("Part 2 result: %v\n", sum)
 }
