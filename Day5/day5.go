@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"os"
 	"regexp"
 	"slices"
@@ -69,23 +68,58 @@ func parseInput(p string) (rules map[int][]int, updates [][]int) {
 func main() {
 	fmt.Printf("Hello Day5\n")
 	rules, updates := parseInput("./input.txt")
-	validUpdates := make([][]int, 0, len(updates))
+	validUpdates, invalidUpdates := splitOnlyValidUpdates(updates, rules)
+	sum := 0
+	for _, update := range validUpdates {
+		middle := len(update) / 2
+		sum += update[middle]
+	}
+	fmt.Printf("Sum of valid middles: %v\n", sum)
+
+	fixedUpdates := make([][]int, 0, len(invalidUpdates))
+	for _, update := range invalidUpdates {
+		ruleMatches := make(map[int]int)
+		for i := range update {
+			ruleMatches[update[i]] = 0
+			for j := 0; j < len(update); j++ {
+				if i == j {
+					continue
+				}
+				if slices.Index(rules[update[i]], update[j]) > -1 {
+					ruleMatches[update[i]] += 1
+				}
+			}
+		}
+		fixedUpdate := update
+		slices.SortFunc(fixedUpdate, func(a, b int) int {
+			return ruleMatches[a] - ruleMatches[b]
+		})
+		fixedUpdates = append(fixedUpdates, fixedUpdate)
+	}
+
+	sum = 0
+	for _, update := range fixedUpdates {
+		middle := len(update) / 2
+		sum += update[middle]
+	}
+	fmt.Printf("Sum of fixed middles: %v\n", sum)
+}
+
+func splitOnlyValidUpdates(updates [][]int, rules map[int][]int) (validUpdates, invalidUpdates [][]int) {
+	validUpdates = make([][]int, 0, len(updates))
+	invalidUpdates = make([][]int, 0, len(updates))
 updateLoop:
 	for _, update := range updates {
 		for i := len(update) - 2; i >= 0; i-- {
 			number := update[i]
 			for j := i + 1; j < len(update); j++ {
 				if slices.Index(rules[number], update[j]) > -1 {
+					invalidUpdates = append(invalidUpdates, update)
 					continue updateLoop
 				}
 			}
 		}
 		validUpdates = append(validUpdates, update)
 	}
-	sum := 0
-	for _, update := range validUpdates {
-		middle := int(math.Floor(float64(len(update) / 2)))
-		sum += update[middle]
-	}
-	fmt.Printf("Sum of middles: %v\n", sum)
+	return validUpdates, invalidUpdates
 }
