@@ -72,7 +72,7 @@ func main() {
 	validUpdates := make([][]int, 0, len(updates))
 updateLoop:
 	for _, update := range updates {
-		for i := 0; i < len(update); i++ {
+		for i := len(update) - 2; i >= 0; i-- {
 			number := update[i]
 			for j := i + 1; j < len(update); j++ {
 				if slices.Index(rules[number], update[j]) > -1 {
