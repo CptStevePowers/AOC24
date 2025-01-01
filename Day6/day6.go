@@ -92,6 +92,8 @@ func nextDirection(current rune) rune {
 		return '<'
 	case '<':
 		return '^'
+	default:
+		return '?'
 	}
 }
 
@@ -193,16 +195,20 @@ func findLoopSet(o *Obstruction, start *Obstruction, direction rune) (LoopSet, e
 			}
 		}
 	case '>':
+		err := fmt.Errorf("not implemented")
+		return LoopSet{}, err
 	case '<':
+		err := fmt.Errorf("not implemented")
+		return LoopSet{}, err
 	case 'v':
+		err := fmt.Errorf("not implemented")
+		return LoopSet{}, err
+	default:
+		err := fmt.Errorf("this should not happen")
+		return LoopSet{}, err
 	}
-}
-
-func (g *Grid) findLoopCandidates() {
-	for key := range g.obstructions {
-		o := g.obstructions[key]
-
-	}
+	err := fmt.Errorf("not implemented")
+	return LoopSet{}, err
 }
 
 func main() {
