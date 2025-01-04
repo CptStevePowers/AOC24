@@ -23,63 +23,36 @@ type Grid struct {
 	guard         Guard
 }
 
-func (g *Grid) IsObstructed(coord [2]uint) (bool, error) {
+func (g *Grid) IsObstructed(coord [2]uint) bool {
 	x := coord[0]
 	y := coord[1]
 	if x > g.height-1 || y > g.width-1 {
-		err := fmt.Errorf("Out of bounds h: %v, w: %v, (%v)", g.height-1, g.width-1, coord)
-		return false, err
+		err := fmt.Errorf("out of bounds h: %v, w: %v, (%v)", g.height-1, g.width-1, coord)
+		panic(err)
 	}
 
 	if g.obstructions[coord] == (Obstruction{}) {
-		return false, nil
+		return false
 	} else {
-		return true, nil
+		return true
 	}
 }
 
-func (g *Guard) Walk() (newCoord [2]uint, err error) {
-	xNew, yNew := g.X, g.Y
-	switch g.direction {
+func directionToVector(direction rune) (vector [2]int) {
+	switch direction {
 	case '^':
-		if yNew == 0 {
-			err = fmt.Errorf("out of bounds (%v,-1)", g.X)
-		} else {
-			yNew--
-		}
+		vector = [2]int{0, -1}
 	case 'v':
-		if yNew >= g.Grid.height-1 {
-			err = fmt.Errorf("out of bounds (%v,%v)", g.X, g.Grid.height)
-		} else {
-			yNew++
-		}
+		vector = [2]int{0, 1}
 	case '<':
-		if xNew == 0 {
-			err = fmt.Errorf("out of bounds (-1,%v)", g.Y)
-		} else {
-			xNew--
-		}
+		vector = [2]int{-1, 0}
 	case '>':
-		if xNew >= g.Grid.width-1 {
-			err = fmt.Errorf("out of bounds (%v, %v)", g.Grid.width, g.Y)
-		} else {
-			xNew++
-		}
+		vector = [2]int{1, 0}
+	default:
+		err := fmt.Errorf("direction must not be '%c', valid directions: '^'|'>'|'v'|'<'", direction)
+		panic(err)
 	}
-
-	isBlocked, obstructionErr := g.Grid.IsObstructed([2]uint{xNew, yNew})
-	if obstructionErr != nil {
-		panic(obstructionErr)
-	}
-
-	if isBlocked {
-		g.handleCollision()
-	} else {
-		g.X = xNew
-		g.Y = yNew
-	}
-
-	return [2]uint{g.X, g.Y}, err
+	return vector
 }
 
 func nextDirection(current rune) rune {
@@ -93,15 +66,42 @@ func nextDirection(current rune) rune {
 	case '<':
 		return '^'
 	default:
-		return '?'
+		err := fmt.Errorf("%c is invalid input", current)
+		panic(err)
 	}
 }
 
-func (g *Guard) handleCollision() {
-	g.direction = nextDirection(g.direction)
+func (grid *Grid) VectorMove(position [2]uint, vector [2]int) ([2]uint, error) {
+	xNew, yNew := vector[0]+int(position[0]), vector[1]+int(position[1])
+	if xNew < 0 || yNew < 0 || xNew > int(grid.width)-1 || yNew > int(grid.height)-1 {
+		err := fmt.Errorf("guard is out of bounds %v", [2]int{xNew, yNew})
+		return position, err
+	}
+	return [2]uint{uint(xNew), uint(yNew)}, nil
 }
 
-func parseInput(p string) Grid {
+func (g *Guard) Patrol() (newCoord [2]uint, err error) {
+	vector := directionToVector(g.direction)
+
+	newCoord, err = g.Grid.VectorMove([2]uint{g.X, g.Y}, vector)
+	if err != nil {
+		return newCoord, err
+	}
+
+	if g.Grid.IsObstructed(newCoord) {
+		//turn
+		d := nextDirection(g.direction)
+		g.direction = d
+	} else {
+		//step
+		g.X = newCoord[0]
+		g.Y = newCoord[1]
+	}
+
+	return [2]uint{g.X, g.Y}, err
+}
+
+func parseInput(p string) *Grid {
 	f, err := os.Open(p)
 	if err != nil {
 		fmt.Printf("Error reading file contents of %s\n", p)
@@ -139,16 +139,65 @@ func parseInput(p string) Grid {
 		}
 		grid.height++
 	}
-	return grid
+	return &grid
 }
 
-func predictPatrol(grid Grid) int {
+func predictPatrol(grid *Grid) int {
 	hist := make(map[[2]uint]rune)
 	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
 	hist[guardStartingCoord] = grid.guard.direction
 
 	for {
-		coord, err := grid.guard.Walk()
+		coord, err := grid.guard.Patrol()
+		if err != nil {
+			fmt.Printf("Stopping patrol - %s\n", err)
+			break
+		}
+		hist[coord] = grid.guard.direction
+	}
+	histKeys := make([][2]uint, 0, len(hist))
+	for k := range hist {
+		histKeys = append(histKeys, k)
+	}
+
+	return len(histKeys)
+}
+
+func findLoops(grid *Grid) int {
+	hist := make(map[[2]uint]rune)
+	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
+	hist[guardStartingCoord] = grid.guard.direction
+
+	for {
+
+		// what if obsatcle ahdead?
+		// place obstacle
+
+		// grid.obstructions[]
+
+		// create virtual guard
+
+		// scannerGuard := Guard{
+		// 	Grid: grid,
+		// 	X:    grid.guard.X,
+		// 	Y:    grid.guard.Y,
+		// }
+		// for directionChanges := 0; directionChanges < 4; directionChanges++ {
+
+		// }
+		// for directionChanges =< 4 {
+
+		// }
+
+		// walk until 2nd obstacle, turn left
+		// walk until 3rd obstacle, turn left
+		// walk until 4th obstacle, turn left
+		// are you in the same column or row as the starting position?
+		// if ^ are you under?
+		// if > are you left of?
+		// if v are you above?
+		// if < are you right?
+		coord, err := grid.guard.Patrol()
 		if err != nil {
 			fmt.Printf("Stopping patrol - %s\n", err)
 			break
@@ -165,50 +214,6 @@ func predictPatrol(grid Grid) int {
 
 type LoopSet struct {
 	Existing []*Obstruction
-}
-
-func findLoopSet(o *Obstruction, start *Obstruction, direction rune) (LoopSet, error) {
-	switch direction {
-	case '^':
-		if o.X >= o.Grid.width-1 {
-			err := fmt.Errorf("loop set impossible, out of bounds")
-			return LoopSet{}, err
-		}
-		for x := o.X; x < o.Grid.width-2; x++ {
-			coord := [2]uint{x, o.Y}
-			hasObstacle, err := o.Grid.IsObstructed(coord)
-			if err != nil {
-				panic(err)
-			}
-			// find next obstacle
-			if hasObstacle {
-				if next := o.Grid.obstructions[coord]; next == *start {
-					return LoopSet{Existing: []*Obstruction{o}}, nil
-				} else {
-					loop, err := findLoopSet(&next, start, nextDirection(direction))
-					if err != nil {
-						return LoopSet{}, err
-					}
-					loop.Existing = append(loop.Existing, o)
-					return loop, nil
-				}
-			}
-		}
-	case '>':
-		err := fmt.Errorf("not implemented")
-		return LoopSet{}, err
-	case '<':
-		err := fmt.Errorf("not implemented")
-		return LoopSet{}, err
-	case 'v':
-		err := fmt.Errorf("not implemented")
-		return LoopSet{}, err
-	default:
-		err := fmt.Errorf("this should not happen")
-		return LoopSet{}, err
-	}
-	err := fmt.Errorf("not implemented")
-	return LoopSet{}, err
 }
 
 func main() {
