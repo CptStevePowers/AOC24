@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"slices"
 )
+
+type History map[[2]uint][]rune
 
 type Guard struct {
 	direction rune
 	X, Y      uint
 	Grid      *Grid
+	History   History
 }
 
 type Obstruction struct {
@@ -163,14 +167,17 @@ func predictPatrol(grid *Grid) int {
 }
 
 func findLoops(grid *Grid) int {
-	hist := make(map[[2]uint]rune)
 	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
-	hist[guardStartingCoord] = grid.guard.direction
+	grid.guard.History = make(History)
+	grid.guard.History[guardStartingCoord] = append(grid.guard.History[guardStartingCoord], grid.guard.direction)
 	loops := make(map[[2]uint]rune)
+	p := 0
 	for {
+		p++
 		startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
+		fmt.Printf("#%v Checking for %v %v\n", p, startingPosition, startingDirection)
 		obstaclePosition, err := grid.NextLocationByVector(startingPosition, directionToVector(startingDirection))
-		if err == nil && grid.checkForLoop(obstaclePosition, hist) {
+		if err == nil && grid.checkForLoop(obstaclePosition) {
 			loops[obstaclePosition] = grid.guard.direction
 		}
 
@@ -178,12 +185,20 @@ func findLoops(grid *Grid) int {
 		if err != nil {
 			break
 		}
-		hist[coord] = grid.guard.direction
+		grid.guard.History[coord] = append(grid.guard.History[coord], grid.guard.direction)
+	}
+	keys := make([][2]uint, 0, len(grid.obstructions))
+	for k := range grid.obstructions {
+		keys = append(keys, k)
+	}
+
+	for _, v := range keys {
+		delete(loops, v)
 	}
 	return len(loops)
 }
 
-func (grid *Grid) checkForLoop(obstaclePosition [2]uint, hist map[[2]uint]rune) bool {
+func (grid *Grid) checkForLoop(obstaclePosition [2]uint) bool {
 	startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
 	if (grid.obstructions[obstaclePosition] != Obstruction{}) {
 		// position already occupied
@@ -198,20 +213,24 @@ func (grid *Grid) checkForLoop(obstaclePosition [2]uint, hist map[[2]uint]rune) 
 		X:         startingPosition[0],
 		Y:         startingPosition[1],
 		direction: startingDirection,
+		History:   make(History),
 	}
 
-	virtualGuardHistory := hist
 	for {
+		fmt.Print(".")
+		oldPos, oldDirection := [2]uint{virtualGuard.X, virtualGuard.Y}, virtualGuard.direction
 		newPos, err := virtualGuard.Patrol()
 		if err != nil {
+			fmt.Print("\n")
 			return false // expected behavior for out of bounds
 		}
 
-		if newPos == startingPosition && startingDirection == virtualGuard.direction {
+		if slices.Index(virtualGuard.History[newPos], virtualGuard.direction) > -1 && slices.Index(virtualGuard.History[oldPos], oldDirection) > -1 {
 			// fmt.Printf("Found loop for obstacle placement %v\n", obstaclePosition)
+			fmt.Print("loop\n")
 			return true
 		}
-		virtualGuardHistory[newPos] = virtualGuard.direction
+		virtualGuard.History[newPos] = append(virtualGuard.History[newPos], virtualGuard.direction)
 	}
 }
 
