@@ -14,7 +14,6 @@ type Guard struct {
 
 type Obstruction struct {
 	X, Y uint
-	Grid *Grid
 }
 
 type Grid struct {
@@ -71,10 +70,10 @@ func nextDirection(current rune) rune {
 	}
 }
 
-func (grid *Grid) VectorMove(position [2]uint, vector [2]int) ([2]uint, error) {
+func (grid *Grid) NextLocationByVector(position [2]uint, vector [2]int) ([2]uint, error) {
 	xNew, yNew := vector[0]+int(position[0]), vector[1]+int(position[1])
 	if xNew < 0 || yNew < 0 || xNew > int(grid.width)-1 || yNew > int(grid.height)-1 {
-		err := fmt.Errorf("guard is out of bounds %v", [2]int{xNew, yNew})
+		err := fmt.Errorf("out of bounds %v", [2]int{xNew, yNew})
 		return position, err
 	}
 	return [2]uint{uint(xNew), uint(yNew)}, nil
@@ -83,7 +82,7 @@ func (grid *Grid) VectorMove(position [2]uint, vector [2]int) ([2]uint, error) {
 func (g *Guard) Patrol() (newCoord [2]uint, err error) {
 	vector := directionToVector(g.direction)
 
-	newCoord, err = g.Grid.VectorMove([2]uint{g.X, g.Y}, vector)
+	newCoord, err = g.Grid.NextLocationByVector([2]uint{g.X, g.Y}, vector)
 	if err != nil {
 		return newCoord, err
 	}
@@ -125,7 +124,7 @@ func parseInput(p string) *Grid {
 		for x, v := range line {
 			switch {
 			case v == '#':
-				obstruction := Obstruction{X: uint(x), Y: y, Grid: &grid}
+				obstruction := Obstruction{X: uint(x), Y: y}
 				grid.obstructions[[2]uint{obstruction.X, obstruction.Y}] = obstruction
 			case v == '^' || v == '<' || v == 'v' || v == '>':
 				if isGuardSet {
@@ -167,49 +166,53 @@ func findLoops(grid *Grid) int {
 	hist := make(map[[2]uint]rune)
 	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
 	hist[guardStartingCoord] = grid.guard.direction
-
+	loops := make(map[[2]uint]rune)
 	for {
+		startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
+		obstaclePosition, err := grid.NextLocationByVector(startingPosition, directionToVector(startingDirection))
+		if err == nil && grid.checkForLoop(obstaclePosition, hist) {
+			loops[obstaclePosition] = grid.guard.direction
+		}
 
-		// what if obsatcle ahdead?
-		// place obstacle
-
-		// grid.obstructions[]
-
-		// create virtual guard
-
-		// scannerGuard := Guard{
-		// 	Grid: grid,
-		// 	X:    grid.guard.X,
-		// 	Y:    grid.guard.Y,
-		// }
-		// for directionChanges := 0; directionChanges < 4; directionChanges++ {
-
-		// }
-		// for directionChanges =< 4 {
-
-		// }
-
-		// walk until 2nd obstacle, turn left
-		// walk until 3rd obstacle, turn left
-		// walk until 4th obstacle, turn left
-		// are you in the same column or row as the starting position?
-		// if ^ are you under?
-		// if > are you left of?
-		// if v are you above?
-		// if < are you right?
 		coord, err := grid.guard.Patrol()
 		if err != nil {
-			fmt.Printf("Stopping patrol - %s\n", err)
 			break
 		}
 		hist[coord] = grid.guard.direction
 	}
-	histKeys := make([][2]uint, 0, len(hist))
-	for k := range hist {
-		histKeys = append(histKeys, k)
+	return len(loops)
+}
+
+func (grid *Grid) checkForLoop(obstaclePosition [2]uint, hist map[[2]uint]rune) bool {
+	startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
+	if (grid.obstructions[obstaclePosition] != Obstruction{}) {
+		// position already occupied
+		return false
 	}
 
-	return len(histKeys)
+	grid.obstructions[obstaclePosition] = Obstruction{X: obstaclePosition[0], Y: obstaclePosition[1]}
+	defer delete(grid.obstructions, obstaclePosition)
+
+	virtualGuard := Guard{
+		Grid:      grid,
+		X:         startingPosition[0],
+		Y:         startingPosition[1],
+		direction: startingDirection,
+	}
+
+	virtualGuardHistory := hist
+	for {
+		newPos, err := virtualGuard.Patrol()
+		if err != nil {
+			return false // expected behavior for out of bounds
+		}
+
+		if newPos == startingPosition && startingDirection == virtualGuard.direction {
+			// fmt.Printf("Found loop for obstacle placement %v\n", obstaclePosition)
+			return true
+		}
+		virtualGuardHistory[newPos] = virtualGuard.direction
+	}
 }
 
 type LoopSet struct {
@@ -218,14 +221,11 @@ type LoopSet struct {
 
 func main() {
 	fmt.Printf("Hello Day6!\n")
-	grid := parseInput("./example.txt")
-	// fmt.Printf("Grid h: %v w: %v\n", grid.height, grid.width)
-	// fmt.Printf("Guard at (%v,%v), facing: %c\n", grid.guard.X, grid.guard.Y, grid.guard.direction)
-	// fmt.Printf("Obstructions at:")
+	grid := parseInput("./input.txt")
 
-	// for k := range grid.obstructions {
-	// 	fmt.Printf(" %v", k)
-	// }
-	// fmt.Print("\n")
-	fmt.Printf("Visited %v unique positions\n", predictPatrol(grid))
+	cpGrid := *grid
+	fmt.Printf("Visited %v unique positions\n", predictPatrol(&cpGrid))
+
+	cpGrid = *grid
+	fmt.Printf("Found %v potential positions for obstacles to cause loop\n", findLoops(&cpGrid))
 }
