@@ -7,50 +7,45 @@ import (
 	"slices"
 )
 
-type History map[[2]uint][]rune
+type Coordinate [2]int
+type History map[Coordinate][]rune
 
 type Guard struct {
-	direction rune
-	X, Y      uint
+	Direction rune
+	Position  Coordinate
 	Grid      *Grid
 	History   History
 }
 
-type Obstruction struct {
-	X, Y uint
-}
-
 type Grid struct {
-	width, height uint
-	obstructions  map[[2]uint]Obstruction
-	guard         Guard
+	Width, Height int
+	Obstructions  map[Coordinate]bool
+	Guard         Guard
 }
 
-func (g *Grid) IsObstructed(coord [2]uint) bool {
-	x := coord[0]
-	y := coord[1]
-	if x > g.height-1 || y > g.width-1 {
-		err := fmt.Errorf("out of bounds h: %v, w: %v, (%v)", g.height-1, g.width-1, coord)
+func (g *Grid) IsObstructed(coord Coordinate) bool {
+	if !g.IsInBounds(coord) {
+		err := fmt.Errorf("out of bounds h: %v, w: %v, (%v)", g.Height-1, g.Width-1, coord)
 		panic(err)
 	}
 
-	if g.obstructions[coord] == (Obstruction{}) {
-		return false
-	} else {
+	if g.Obstructions[coord] {
 		return true
+	} else {
+		return false
 	}
 }
 
-func directionToVector(direction rune) (vector [2]int) {
+func directionToVector(direction rune) (vector Coordinate) {
 	switch direction {
 	case '^':
-		vector = [2]int{0, -1}
+		vector = Coordinate{0, -1}
 	case 'v':
-		vector = [2]int{0, 1}
+		vector = Coordinate{0, 1}
 	case '<':
-		vector = [2]int{-1, 0}
+		vector = Coordinate{-1, 0}
 	case '>':
-		vector = [2]int{1, 0}
+		vector = Coordinate{1, 0}
 	default:
 		err := fmt.Errorf("direction must not be '%c', valid directions: '^'|'>'|'v'|'<'", direction)
 		panic(err)
@@ -74,34 +69,32 @@ func nextDirection(current rune) rune {
 	}
 }
 
-func (grid *Grid) NextLocationByVector(position [2]uint, vector [2]int) ([2]uint, error) {
-	xNew, yNew := vector[0]+int(position[0]), vector[1]+int(position[1])
-	if xNew < 0 || yNew < 0 || xNew > int(grid.width)-1 || yNew > int(grid.height)-1 {
-		err := fmt.Errorf("out of bounds %v", [2]int{xNew, yNew})
-		return position, err
+func (grid *Grid) IsInBounds(position Coordinate) bool {
+	x, y := position[0], position[1]
+	if x >= 0 && y >= 0 && x < int(grid.Width) && y < int(grid.Height) {
+		return true
 	}
-	return [2]uint{uint(xNew), uint(yNew)}, nil
+	return false
 }
 
-func (g *Guard) Patrol() (newCoord [2]uint, err error) {
-	vector := directionToVector(g.direction)
+func (guard *Guard) Patrol() (newPosition Coordinate, err error) {
+	vector := directionToVector(guard.Direction)
 
-	newCoord, err = g.Grid.NextLocationByVector([2]uint{g.X, g.Y}, vector)
-	if err != nil {
-		return newCoord, err
+	xNew, yNew := vector[0]+guard.Position[0], vector[1]+guard.Position[1]
+	newPosition = Coordinate{xNew, yNew}
+	if !guard.Grid.IsInBounds(newPosition) {
+		err = fmt.Errorf("out of bounds")
+		return newPosition, err
 	}
 
-	if g.Grid.IsObstructed(newCoord) {
-		//turn
-		d := nextDirection(g.direction)
-		g.direction = d
+	if guard.Grid.IsObstructed(newPosition) {
+		d := nextDirection(guard.Direction)
+		guard.Direction = d
 	} else {
-		//step
-		g.X = newCoord[0]
-		g.Y = newCoord[1]
+		guard.Position = newPosition
 	}
 
-	return [2]uint{g.X, g.Y}, err
+	return guard.Position, err
 }
 
 func parseInput(p string) *Grid {
@@ -112,130 +105,97 @@ func parseInput(p string) *Grid {
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 
-	o := make(map[[2]uint]Obstruction)
-	grid := Grid{obstructions: o}
+	o := make(map[Coordinate]bool)
+	grid := Grid{Obstructions: o}
 
 	isGuardSet := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if grid.width == 0 {
-			grid.width = uint(len(line))
-		} else if grid.width != uint(len(line)) {
-			err := fmt.Errorf("different line lengths %v is not equal to previous (%v)", len(line), grid.width)
+		if grid.Width == 0 {
+			grid.Width = int(len(line))
+		} else if grid.Width != int(len(line)) {
+			err := fmt.Errorf("different line lengths %v is not equal to previous (%v)", len(line), grid.Width)
 			panic(err)
 		}
-		y := grid.height
+		y := grid.Height
 		for x, v := range line {
 			switch {
 			case v == '#':
-				obstruction := Obstruction{X: uint(x), Y: y}
-				grid.obstructions[[2]uint{obstruction.X, obstruction.Y}] = obstruction
+				grid.Obstructions[Coordinate{x, y}] = true
 			case v == '^' || v == '<' || v == 'v' || v == '>':
 				if isGuardSet {
-					err := fmt.Errorf("Guard already set at (%v,%v)", grid.guard.X, grid.guard.Y)
+					err := fmt.Errorf("Guard already set at (%v,%v)", grid.Guard.Position[0], grid.Guard.Position[1])
 					panic(err)
 				}
-				guard := Guard{X: uint(x), Y: y, Grid: &grid, direction: v}
-				grid.guard = guard
+				guard := Guard{Position: Coordinate{x, y}, Grid: &grid, Direction: v}
+				grid.Guard = guard
 				isGuardSet = true
 			}
 		}
-		grid.height++
+		grid.Height++
 	}
 	return &grid
 }
 
-func predictPatrol(grid *Grid) int {
-	hist := make(map[[2]uint]rune)
-	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
-	hist[guardStartingCoord] = grid.guard.direction
+func predictPatrol(guard Guard) History {
+	guard.History = make(History)
+	guardStartingPosition := guard.Position
+	guard.History[guardStartingPosition] = append(guard.History[guardStartingPosition], guard.Direction)
 
 	for {
-		coord, err := grid.guard.Patrol()
+		coord, err := guard.Patrol()
 		if err != nil {
 			fmt.Printf("Stopping patrol - %s\n", err)
 			break
 		}
-		hist[coord] = grid.guard.direction
-	}
-	histKeys := make([][2]uint, 0, len(hist))
-	for k := range hist {
-		histKeys = append(histKeys, k)
+		guard.History[coord] = append(guard.History[coord], guard.Direction)
 	}
 
-	return len(histKeys)
+	return guard.History
 }
 
-func findLoops(grid *Grid) int {
-	guardStartingCoord := [2]uint{grid.guard.X, grid.guard.Y}
-	grid.guard.History = make(History)
-	grid.guard.History[guardStartingCoord] = append(grid.guard.History[guardStartingCoord], grid.guard.direction)
-	loops := make(map[[2]uint]rune)
-	p := 0
-	for {
-		p++
-		startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
-		fmt.Printf("#%v Checking for %v %v\n", p, startingPosition, startingDirection)
-		obstaclePosition, err := grid.NextLocationByVector(startingPosition, directionToVector(startingDirection))
-		if err == nil && grid.checkForLoop(obstaclePosition) {
-			loops[obstaclePosition] = grid.guard.direction
-		}
+func findLocationsForLoops(grid *Grid, history History) int {
+	guardStartingPosition := grid.Guard.Position
+	grid.Guard.History = make(History)
+	grid.Guard.History[guardStartingPosition] = append(grid.Guard.History[guardStartingPosition], grid.Guard.Direction)
 
-		coord, err := grid.guard.Patrol()
-		if err != nil {
-			break
+	loops := make(map[Coordinate]rune)
+	for obstaclePosition := range history {
+		if grid.checkForLoop(obstaclePosition) {
+			loops[obstaclePosition] = grid.Guard.Direction
 		}
-		grid.guard.History[coord] = append(grid.guard.History[coord], grid.guard.direction)
-	}
-	keys := make([][2]uint, 0, len(grid.obstructions))
-	for k := range grid.obstructions {
-		keys = append(keys, k)
 	}
 
-	for _, v := range keys {
-		delete(loops, v)
-	}
 	return len(loops)
 }
 
-func (grid *Grid) checkForLoop(obstaclePosition [2]uint) bool {
-	startingPosition, startingDirection := [2]uint{grid.guard.X, grid.guard.Y}, grid.guard.direction
-	if (grid.obstructions[obstaclePosition] != Obstruction{}) {
-		// position already occupied
+func (grid *Grid) checkForLoop(obstaclePosition Coordinate) bool {
+	startingPosition, startingDirection := grid.Guard.Position, grid.Guard.Direction
+	if grid.Obstructions[obstaclePosition] {
 		return false
 	}
 
-	grid.obstructions[obstaclePosition] = Obstruction{X: obstaclePosition[0], Y: obstaclePosition[1]}
-	defer delete(grid.obstructions, obstaclePosition)
+	grid.Obstructions[obstaclePosition] = true
+	defer delete(grid.Obstructions, obstaclePosition)
 
 	virtualGuard := Guard{
 		Grid:      grid,
-		X:         startingPosition[0],
-		Y:         startingPosition[1],
-		direction: startingDirection,
+		Position:  startingPosition,
+		Direction: startingDirection,
 		History:   make(History),
 	}
 
 	for {
-		fmt.Print(".")
-		oldPos, oldDirection := [2]uint{virtualGuard.X, virtualGuard.Y}, virtualGuard.direction
 		newPos, err := virtualGuard.Patrol()
 		if err != nil {
-			fmt.Print("\n")
 			return false // expected behavior for out of bounds
 		}
 
-		if slices.Index(virtualGuard.History[newPos], virtualGuard.direction) > -1 && slices.Index(virtualGuard.History[oldPos], oldDirection) > -1 {
-			// fmt.Printf("Found loop for obstacle placement %v\n", obstaclePosition)
-			fmt.Print("loop\n")
+		if slices.Index(virtualGuard.History[newPos], virtualGuard.Direction) > -1 {
 			return true
 		}
-		virtualGuard.History[newPos] = append(virtualGuard.History[newPos], virtualGuard.direction)
+		virtualGuard.History[newPos] = append(virtualGuard.History[newPos], virtualGuard.Direction)
 	}
-}
-
-type LoopSet struct {
-	Existing []*Obstruction
 }
 
 func main() {
@@ -243,8 +203,9 @@ func main() {
 	grid := parseInput("./input.txt")
 
 	cpGrid := *grid
-	fmt.Printf("Visited %v unique positions\n", predictPatrol(&cpGrid))
+	uniquePositions := predictPatrol(cpGrid.Guard)
+	fmt.Printf("Visited %v unique positions\n", len(uniquePositions))
 
 	cpGrid = *grid
-	fmt.Printf("Found %v potential positions for obstacles to cause loop\n", findLoops(&cpGrid))
+	fmt.Printf("Found %v potential positions for obstacles to cause loop\n", findLocationsForLoops(&cpGrid, uniquePositions))
 }
