@@ -59,6 +59,17 @@ func (e *Equation) FindCombination(index int) bool {
 		return false
 	}
 
+	//cancel branch in case the result is already too big
+	intermediary := Equation{
+		Result:    e.Result,
+		Operators: e.Operators[:index],
+		Numbers:   e.Numbers[:index+1],
+	}
+	sol, err := intermediary.Solve()
+	if err != nil || sol > e.Result {
+		return false
+	}
+
 	for i := 0; i < len(possibleOperators); i++ {
 		e.Operators[index] = possibleOperators[i]
 		if index < len(e.Operators)-1 {
@@ -68,7 +79,7 @@ func (e *Equation) FindCombination(index int) bool {
 		} else {
 			s, err := e.Solve()
 			if err != nil {
-				panic(err)
+				return false
 			}
 			if s == e.Result {
 				return true
