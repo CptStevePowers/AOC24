@@ -56,14 +56,32 @@ func parseInput(p string) *Grid {
 	return &grid
 }
 
-func FindAntinodes(a, b Antenna) []Coordinate {
+func (grid *Grid) FindAntinodes(a, b Antenna) []Coordinate {
 	antinodes := make([]Coordinate, 0, 2)
 	if a.Frequency != b.Frequency {
 		return antinodes
 	}
 	vectorAB := [2]int{b.Coordinate[0] - a.Coordinate[0], b.Coordinate[1] - a.Coordinate[1]}
-	antinodes = append(antinodes, Coordinate{a.Coordinate[0] - vectorAB[0], a.Coordinate[1] - vectorAB[1]})
-	antinodes = append(antinodes, Coordinate{b.Coordinate[0] + vectorAB[0], b.Coordinate[1] + vectorAB[1]})
+	// stuff needs to happend here for part two ... something with multiples and so on until it's out of the map
+	k := 0
+	for {
+		newNode := Coordinate{a.Coordinate[0] - k*vectorAB[0], a.Coordinate[1] - k*vectorAB[1]}
+		if newNode[0] >= grid.Width || newNode[0] < 0 || newNode[1] >= grid.Height || newNode[1] < 0 {
+			break
+		}
+		antinodes = append(antinodes, newNode)
+		k++
+	}
+
+	k = 0
+	for {
+		newNode := Coordinate{b.Coordinate[0] + k*vectorAB[0], b.Coordinate[1] + k*vectorAB[1]}
+		if newNode[0] >= grid.Width || newNode[0] < 0 || newNode[1] >= grid.Height || newNode[1] < 0 {
+			break
+		}
+		antinodes = append(antinodes, newNode)
+		k++
+	}
 	return antinodes
 }
 
@@ -85,7 +103,7 @@ func main() {
 				continue
 			}
 			frequency := antennaA.Frequency
-			a := FindAntinodes(antennaA, antennaB)
+			a := grid.FindAntinodes(antennaA, antennaB)
 			for _, coord := range a {
 				if coord[0] >= grid.Width || coord[0] < 0 || coord[1] >= grid.Height || coord[1] < 0 {
 					continue
