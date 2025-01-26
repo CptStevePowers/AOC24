@@ -9,9 +9,7 @@ import (
 	"strconv"
 )
 
-type Disk []int64
-
-func parseInput(p string) Disk {
+func parseInput(p string) FileSystem {
 	f, err := os.Open(p)
 	if err != nil {
 		fmt.Printf("Error reading file contents of %s\n", p)
@@ -23,14 +21,15 @@ func parseInput(p string) Disk {
 		panic(err)
 	}
 
-	disk := make(Disk, 0)
+	fs := FileSystem{Files: make([]File, 0)}
 	var fileId int64 = 0
 	isFile := true
+	var fsPointer int64 = 0
 	for {
 		b, err := reader.ReadByte()
 		if err != nil {
 			if err == io.EOF {
-				return disk
+				return fs
 			}
 			panic(err)
 		}
@@ -40,61 +39,42 @@ func parseInput(p string) Disk {
 			panic(err)
 		}
 		if isFile {
-			for j := 0; j < v; j++ {
-				disk = append(disk, fileId)
-			}
+			fs.AddFile(File{Id: fileId, Size: int64(v), Start: fsPointer})
 			fileId++
 		} else {
-			for j := 0; j < v; j++ {
-				disk = append(disk, -1)
-			}
+			fs.AddFile(File{Id: -1, Size: int64(v), Start: fsPointer})
 		}
 		isFile = !isFile
+		fsPointer += int64(v)
 	}
-	return disk
+	return fs
 }
 
-func (disk Disk) FormatDiskP1() Disk {
-	leftPointer := 0
-	rightPointer := len(disk) - 1
-
-	for leftPointer < rightPointer {
-		if disk[leftPointer] < 0 && disk[rightPointer] > -1 {
-			disk[leftPointer], disk[rightPointer] = disk[rightPointer], disk[leftPointer]
-		}
-
-		for disk[leftPointer] > -1 {
-			leftPointer++
-		}
-		for disk[rightPointer] < 0 {
-			rightPointer--
-		}
-	}
-	return disk
-}
-
-func (disk Disk) String() string {
+func (fs FileSystem) String() string {
 	s := ""
-	for _, v := range disk {
-		if v < 0 {
-			s += "."
-		} else {
-			s += fmt.Sprintf("%v", v)
+	for _, v := range fs.Files {
+		for i := int64(0); i < v.Size; i++ {
+			if v.Id < 0 {
+				s += "."
+			} else {
+				s += fmt.Sprintf("%v", v.Id)
+			}
 		}
-		s += " "
 	}
 	return s
 }
 
-func (disk Disk) CheckSum() int64 {
+func (fs *FileSystem) CheckSum() int64 {
 	var sum int64 = 0
 	var pos int64 = 0
-	for _, v := range disk {
-		if v > 0 {
-			r := pos * v
-			sum += r
+	for _, v := range fs.Files {
+		for i := int64(0); i < v.Size; i++ {
+			if v.Id > 0 {
+				r := pos * v.Id
+				sum += r
+			}
+			pos++
 		}
-		pos++
 	}
 	return sum
 }
@@ -107,22 +87,6 @@ type FileSystem struct {
 	Files []File
 }
 
-func (fs FileSystem) String() string {
-	s := ""
-	for _, file := range fs.Files {
-		s += fmt.Sprintf("%v(%v, %v) ", file.Id, file.Start, file.Size)
-	}
-	return s
-}
-
-func (fs *FileSystem) GetFile(id int64) *File {
-	if i := slices.IndexFunc(fs.Files, func(f File) bool { return f.Id == id }); i > -1 {
-		return &fs.Files[i]
-	} else {
-		return nil
-	}
-}
-
 func (fs *FileSystem) AddFile(f File) *File {
 	if fs.Files == nil {
 		fs.Files = make([]File, 1)
@@ -133,31 +97,7 @@ func (fs *FileSystem) AddFile(f File) *File {
 
 // alrighty this is gonna go bad if we dont establish the correct datamodel :D
 // something like Block with start, id, size
-func NewFileSystem(disk Disk) FileSystem {
-	var pos int64 = 0
-	j := pos + 1
-	fs := FileSystem{Files: make([]File, 0)}
-	for j < int64(len(disk)) && pos < int64(len(disk)) {
-		j = pos + 1
-		fileId := disk[pos]
-		f := File{Id: fileId, Start: pos, Size: 1}
-		for j < int64(len(disk)) && disk[j] == fileId {
-			f.Size++
-			j++
-		}
-
-		if len(fs.Files) > 0 && fs.Files[len(fs.Files)-1].Id == f.Id {
-			fs.Files[len(fs.Files)-1].Size += f.Size
-		} else {
-			fs.AddFile(f)
-		}
-		pos = pos + f.Size
-	}
-	return fs
-}
-
-func (disk Disk) Part2() Disk {
-	fs := NewFileSystem(disk)
+func (fs *FileSystem) Part2() *FileSystem {
 	fileId := slices.MaxFunc(fs.Files, func(a, b File) int { return int(a.Id) - int(b.Id) }).Id
 	for fileId > -1 {
 		filePos := slices.IndexFunc(fs.Files, func(f File) bool { return f.Id == fileId })
@@ -165,7 +105,7 @@ func (disk Disk) Part2() Disk {
 			panic(fmt.Errorf("i should not be smaller 0"))
 		}
 		fileSize := fs.Files[filePos].Size
-		gapPos := slices.IndexFunc(fs.Files, func(f File) bool {
+		gapPos := slices.IndexFunc(fs.Files[:filePos], func(f File) bool {
 			return f.Id < 0 && f.Size >= fileSize
 		})
 
@@ -183,24 +123,14 @@ func (disk Disk) Part2() Disk {
 		fileId--
 	}
 	slices.SortFunc(fs.Files, func(a, b File) int { return int(a.Start - b.Start) })
-	return fs.ToDisk()
-}
-
-func (fs FileSystem) ToDisk() Disk {
-	disk := make(Disk, 0, len(fs.Files))
-	for i := 0; i < len(fs.Files); i++ {
-		for j := 0; j < int(fs.Files[i].Size); j++ {
-			disk = append(disk, fs.Files[i].Id)
-		}
-	}
-	return disk
+	return fs
 }
 
 func main() {
 	fmt.Print("Hello Day9\n")
-	unformattedDisk := parseInput("./input-benchmark.txt")
-	fmt.Printf("%v\n", unformattedDisk)
+	unformattedDisk := parseInput("./input.txt")
+	// fmt.Printf("%v\n", unformattedDisk)
 	formattedDisk := unformattedDisk.Part2()
-	fmt.Printf("\n%v\n", formattedDisk)
+	// fmt.Printf("\n%v\n", formattedDisk)
 	fmt.Printf("Part2: %v\n", formattedDisk.CheckSum())
 }
