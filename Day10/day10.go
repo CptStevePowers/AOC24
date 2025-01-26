@@ -117,11 +117,14 @@ func ScoreTrail(trailMap TrailMap, trailHead Coordinate) int {
 		}
 	}
 
+	// Part 1
 	// finishedSteppersByDestination := make(map[Coordinate][]Stepper)
 	// for _, stepper := range completedTrails {
 	// finishedSteppersByDestination[stepper.Position()] = append(finishedSteppersByDestination[stepper.Position()], stepper)
 	// }
+	// score := len(completedTrails)
 
+	// Part 2
 	score := len(completedTrails)
 	return score
 }
