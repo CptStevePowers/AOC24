@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func parseInput(p string) []int64 {
@@ -36,37 +37,44 @@ func parseInput(p string) []int64 {
 //... if even number of digits replace with two stones: left stone left half, right stone right half of digits (remove leading zeroes)
 //... otherwise multiply stone by 2024
 
-func Blink(stones []int64) []int64 {
-	out := make([]int64, 0, len(stones))
-	for _, stone := range stones {
-		if stone == 0 {
-			out = append(out, 1)
-		} else if s := fmt.Sprintf("%v", stone); len(s)%2 == 0 {
-			s1, err := strconv.Atoi(s[:len(s)/2])
-			if err != nil {
-				panic(err)
-			}
-			out = append(out, int64(s1))
-			s2, err := strconv.Atoi(s[len(s)/2:])
-			if err != nil {
-				panic(err)
-			}
-			out = append(out, int64(s2))
-		} else {
-			out = append(out, stone*2024)
-		}
-	}
-	return out
-}
-
+// part2 credit to https://github.com/AllanTaylor314/AdventOfCode/blob/main/2024/11.py#L15
 func main() {
 	fmt.Print("Hello Day11\n")
-	stones := parseInput("./input.txt")
-	// fmt.Printf("%v\n", stones)
-	for i := 0; i < 75; i++ {
-		stones = Blink(stones)
-		fmt.Printf("%v, %v\n", i, len(stones))
-		// fmt.Printf("After %v blinks:\n%v\n", i+1, stones)
+	input := parseInput("./input.txt")
+	stones := make(map[int64]int64)
+
+	for _, n := range input {
+		stones[n]++
 	}
-	fmt.Printf("Number of stones: %v", len(stones))
+
+	start := time.Now()
+	for i := 0; i < 75; i++ {
+		newStones := make(map[int64]int64)
+		for number := range stones {
+			if number == 0 {
+				newStones[1] += stones[number]
+			} else if s := fmt.Sprintf("%v", number); len(s)%2 == 0 {
+				s1, s2 := s[:int(len(s)/2)], s[int(len(s)/2):]
+				n1, err := strconv.Atoi(s1)
+				if err != nil {
+					panic(err)
+				}
+				n2, err := strconv.Atoi(s2)
+				if err != nil {
+					panic(err)
+				}
+				newStones[int64(n1)] += stones[number]
+				newStones[int64(n2)] += stones[number]
+			} else {
+				newStones[number*2024] += stones[number]
+			}
+		}
+		stones = newStones
+	}
+	var count int64 = 0
+	for key := range stones {
+		count += stones[key]
+	}
+	fmt.Printf("Took %s seconds\n", time.Since(start))
+	fmt.Printf("Number of stones: %v\n", count)
 }
