@@ -173,12 +173,9 @@ func GetRegions(garden Garden) map[*Region]bool {
 	}
 
 	for len(queue) > 0 {
-		var currentPlot *Plot = nil
-		if currentPlot == nil {
-			coord := queue[0]
-			queue = queue[1:]
-			currentPlot = garden[coord]
-		}
+		coord := queue[0]
+		queue = queue[1:]
+		currentPlot := garden[coord]
 
 		if r := slices.Index(queue, currentPlot.Coordinate); r > -1 {
 			queue = append(queue[:r], queue[r+1:]...)
