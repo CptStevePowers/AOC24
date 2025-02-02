@@ -80,7 +80,7 @@ func MergeRegions(a, b Region) Region {
 
 type Vector [2]int
 
-var validDirections []Vector = []Vector{{-1, 0}, {0, 1}, {-1, 0}, {0, -1}}
+var validDirections []Vector = []Vector{{-1, 0}, {0, 1}, {1, 0}, {0, -1}}
 
 func (r *Region) Area() int {
 	return len(r.Plots)
@@ -107,20 +107,8 @@ func Move(pos Coordinate, dir Vector) Coordinate {
 	return Coordinate{pos[0] + dir[0], pos[1] + dir[1]}
 }
 
-type Fence [2]Coordinate
-
-func NewFence(a, b Coordinate) Fence {
-
-	if a[0] < b[0] {
-		return Fence{a, b}
-	} else if a[0] > b[0] {
-		return Fence{b, a}
-	} else if a[1] < b[1] {
-		return Fence{a, b}
-	} else if a[1] > b[1] {
-		return Fence{b, a}
-	}
-	return Fence{a, b}
+func Flip(v Vector) Vector {
+	return Vector{-v[0], -v[1]}
 }
 
 func (r *Region) Sides() int {
@@ -129,37 +117,47 @@ func (r *Region) Sides() int {
 		regionMap[plot.Coordinate] = true
 	}
 
-	allFences := make([]Fence, 0)
-	for currentCoordinate := range regionMap {
+	sides := make(map[Vector]map[int][]int)
+	for coord := range regionMap {
 		for _, direction := range validDirections {
-			nextCoordinate := Move(currentCoordinate, direction)
-			if !regionMap[nextCoordinate] {
-				allFences = append(allFences, NewFence(currentCoordinate, nextCoordinate))
+			neighborCoord := Move(coord, direction)
+			if regionMap[neighborCoord] {
+				continue
+			}
+			if direction[0] == 0 {
+				if sides[direction] == nil {
+					sides[direction] = make(map[int][]int)
+					sides[direction][coord[1]] = make([]int, 0)
+				}
+				sides[direction][coord[1]] = append(sides[direction][coord[1]], coord[0])
+			} else {
+				if sides[direction] == nil {
+					sides[direction] = make(map[int][]int)
+					sides[direction][coord[0]] = make([]int, 0)
+				}
+				sides[direction][coord[0]] = append(sides[direction][coord[0]], coord[1])
 			}
 		}
 	}
 
-	horizontalFences := make(map[int][]int)
-	verticalFences := make(map[int][]int)
-	for _, fence := range allFences {
-		if fence[0][0] == fence[1][0] {
-			verticalFences[fence[0][0]] = append(verticalFences[fence[0][0]], fence[0][1])
-		} else if fence[0][1] == fence[1][1] {
-			horizontalFences[fence[0][1]] = append(horizontalFences[fence[0][1]], fence[0][0])
-		} else {
-			panic(fmt.Errorf("this should really not happen help!"))
+	sidesCount := 0
+	for direction := range sides {
+		for i := range sides[direction] {
+			fences := sides[direction][i]
+			sidesCount++
+			if len(fences) == 1 {
+				continue
+			}
+			slices.Sort(fences)
+			for j := 0; j < len(fences)-1; j++ {
+				if fences[j+1]-fences[j] > 1 {
+					sidesCount++
+				}
+			}
 		}
 	}
+	return sidesCount
 
-	//TODO: HELP ME
-	// sides := 0
-	// for row := range horizontalFences {
-	// 	cols := horizontalFences[row]
-	// 	cols = slices.SortedFunc(cols, func(a, b int) int { return a - b })
-
-	// }
-
-	return len(allFences)
 }
 
 type Queue []Coordinate
@@ -234,8 +232,8 @@ func Part2(regions map[*Region]bool) int {
 	total := 0
 	for r := range regions {
 		area := r.Area()
-		perimeter := r.Sides()
-		price := area * perimeter
+		sides := r.Sides()
+		price := area * sides
 		// fmt.Printf("A region of %s plants with price %v * %v = %v\n", r.Plant, area, perimeter, price)
 		total += price
 	}
@@ -246,11 +244,12 @@ func Part2(regions map[*Region]bool) int {
 func main() {
 	fmt.Print("Hello Day12\n")
 	garden := parseInput("./input.txt")
+	var total int
 	start := time.Now()
 	regions := GetRegions(garden)
 	fmt.Printf("Get Regions done after %v\n", time.Since(start))
 	start = time.Now()
-	total := Part1(regions)
+	total = Part1(regions)
 	fmt.Printf("Part1 done after %v\n", time.Since(start))
 	fmt.Printf("Total price: %v\n", total)
 	start = time.Now()
