@@ -176,6 +176,7 @@ func GetRegions(garden Garden) map[*Region]bool {
 		var currentPlot *Plot = nil
 		if currentPlot == nil {
 			coord := queue[0]
+			queue = queue[1:]
 			currentPlot = garden[coord]
 		}
 
@@ -200,7 +201,6 @@ func GetRegions(garden Garden) map[*Region]bool {
 			if neighborPlot.Region == nil {
 				neighborPlot.Region = currentPlot.Region
 				currentPlot.Region.Plots = append(currentPlot.Region.Plots, neighborPlot)
-				queue = Push(queue, neighborPlot.Coordinate)
 				continue
 			}
 			if neighborPlot.Region != currentPlot.Region {
